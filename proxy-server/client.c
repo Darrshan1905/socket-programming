@@ -10,8 +10,7 @@
 #include<arpa/inet.h>
 #include<time.h>
 
-#define PORT "3490"	//port number of the server
-#define MAX 200		//maximum buffer size
+#define MAX 100		//maximum buffer size
 
 //get the sock address and return in network representation
 void *get_addr(struct sockaddr *sa) { 
@@ -21,7 +20,7 @@ void *get_addr(struct sockaddr *sa) {
 }
 
 //creating a socket for client and returning the socket descriptor
-int create_clientsocket(char *host) {
+int create_clientsocket(char *host, char* port) {
 	int sockfd;
 	struct addrinfo hints, *servinfo, *p;
 	char s[INET6_ADDRSTRLEN];
@@ -32,7 +31,7 @@ int create_clientsocket(char *host) {
         hints.ai_socktype = SOCK_STREAM;		//TCP stream socket
 
 	//gives a pointer to a linked list, servinfo of results
-        if((rv = getaddrinfo(host, PORT, &hints, &servinfo)) != 0) {
+        if((rv = getaddrinfo(host, port, &hints, &servinfo)) != 0) {
                 fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
                 return 1;
         }
@@ -65,80 +64,43 @@ int create_clientsocket(char *host) {
 	return sockfd;
 }
 
-//send get request to the server on sockfd
-void sendgetrequest(int sockfd, char *host) {
-	char req[MAX];
-	
-	sprintf(req, "GET / HTTP/1.1\r\nHost: %s\r\n\r\n", host);
-	if(send(sockfd, req, strlen(req), 0) == -1) {
+//send message to the server on sockfd
+void sendmessage(int sockfd, char msg[]) {
+	if(send(sockfd, msg, 30, 0) == -1) {
                 perror("send");
                 exit(1);
         }
-        printf("Get Request sent to the server\n");
-}
-
-//send post request to the server on sockfd
-void sendpostrequest(int sockfd, char *host) {
-	char req[MAX];
-	char body[25] = "Hello this is client";
-	
-	sprintf(req, "POST / HTTP/1.1\r\nHost: %s\r\n\r\n%s", host, body);
-
-        if(send(sockfd, req, strlen(req), 0) == -1) {
-                perror("send");
-                exit(1);
-        }
-        printf("Post Request sent to the server\n");
+        printf("Sent message to the server\n");
 }
 
 //receive the message from the server on sockfd
 void recvmessage(int sockfd) {
 	int n;			//number of bytes actually received
 	char buf[MAX];
-	
-	FILE* outputfile = fopen("output.html", "wb");
-	if(outputfile == NULL) {
-		fprintf(stderr,"Can't open file output.html\n");
-		return;
-	}
-
 	if((n = recv(sockfd, buf, MAX - 1, 0)) == -1) {
-                perror("recv\n");
-		exit(1);
+                perror("recv");
+                exit(1);
         }
 
         buf[n] = '\0';
 
-	char *content = strstr(buf, "\r\n\r\n");
-	
-	if(content != NULL)
-		fwrite(content + 4, 1, strlen(content + 4), outputfile);	
-
-        printf("client: received response from server: \n'%s'\n", buf);
+        printf("client: received message from server - '%s'\n", buf);
 }
 
 int main(int argc, char *argv[]) {
 	int sockfd;
 	char msg[30] = "Hello from Client";
 
-	if(argc != 2) {
-		fprintf(stderr,"usage: client hostname\n");
+	if(argc != 3) {
+		fprintf(stderr,"usage: client hostname port\n");
 		exit(1);
 	}
 
-	sockfd = create_clientsocket(argv[1]);		//create a socket and bind it to the ip and port of the server
+	sockfd = create_clientsocket(argv[1], argv[2]);		//create a socket and bind it to the ip and port of the server
 
-	int req_method;
-	printf("Enter Req. method\n0.GET\n1.POST\n");
-	scanf("%d", &req_method);
-	if(!req_method) {
-		sendgetrequest(sockfd, argv[1]);	//send get request to the server
-		recvmessage(sockfd);			//receive message from the server
-	}
-	else if(req_method == 1) {
-		sendpostrequest(sockfd, argv[1]);	//send post request to the server
-		recvmessage(sockfd);
-	}
+	sendmessage(sockfd, msg);			//send message to the server
+
+	recvmessage(sockfd);				//receive message from the server
 
 	close(sockfd);					//close the socket
 
