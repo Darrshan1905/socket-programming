@@ -95,12 +95,25 @@ void sendpostrequest(int sockfd, char *host) {
 void recvmessage(int sockfd) {
 	int n;			//number of bytes actually received
 	char buf[MAX];
+	
+	FILE* outputfile = fopen("output.html", "wb");
+	if(outputfile == NULL) {
+		fprintf(stderr,"Can't open file output.html\n");
+		return;
+	}
+
 	if((n = recv(sockfd, buf, MAX - 1, 0)) == -1) {
-                perror("recv");
-                exit(1);
+                perror("recv\n");
+		exit(1);
         }
 
         buf[n] = '\0';
+
+	char *content = strstr(buf, "\r\n\r\n");
+
+	printf("\n%s", content + 4);
+
+	fwrite(content + 4, 1, strlen(content + 4), outputfile);	
 
         printf("client: received response from server: \n'%s'\n", buf);
 }

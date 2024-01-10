@@ -197,7 +197,7 @@ void handlegetreq(int newfd, char req[]) {
 
 	printf("%s\n", fileURL);
 
-	FILE *file = fopen(fileURL, "r");
+	FILE *file = fopen(fileURL + 1, "r");
 
 	if(!file) {
 		char response[MAX];
@@ -214,7 +214,7 @@ void handlegetreq(int newfd, char req[]) {
 	time(&t);
 	strcpy(timebuf, ctime(&t));
 
-	sprintf(resheader, "HTTP/1.1 200 OK\r\nDate: %s\r\nContent-Type: %s\r\n\n", timebuf, mimetype);
+	sprintf(resheader, "HTTP/1.1 200 OK\r\nDate: %s\r\nContent-Type: %s\r\n\r\n", timebuf, mimetype);
 	headersize = strlen(resheader);
 
 	fseek(file, 0, SEEK_END);
