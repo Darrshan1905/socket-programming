@@ -17,7 +17,7 @@
 
 #define PORT "5010"	//the port the users wil be connecting to
 #define BACKLOG 10 	//pending connections the queue can hold
-#define MAXBUF 200	   	//maximum buffer size
+#define MAXBUF 100	   	//maximum buffer size
 
 void sig_handler(int s) {
 	int saved_errno = errno;
@@ -126,7 +126,7 @@ int server_accept(int sockfd) {
         
 	if(newfd == -1) {
         	perror("accept");
-                return newfd;
+                return -1;
         }
 	
 	//convert the ip address from network to presentation format
@@ -141,17 +141,25 @@ void handleresponse(int newfd) {
 	char buf[MAXBUF];	//used to hold the message sent by the client
 	int n = 0;              //number of bytes actually read
 
-	memset(&buf, '\0', sizeof(buf));
-	n = recv(newfd, buf, sizeof(buf), 0);
+	buf[0] = '\0';	
+	n = recv(newfd, buf, sizeof(buf) - 1, 0);
+	buf[n] = '\0';
 	
 	printf("Server: Received message from socket %d: %s\n", newfd, buf);
-	printf("%d", n);
+	
 	if(n == -1) {
 		perror("read\n");
 		exit(1);
 	}
 
-	send(newfd, buf, sizeof(buf), 0);
+	n = send(newfd, buf, sizeof(buf) - 1, 0);
+
+	if(n == -1) {
+		perror("send\n");
+		exit(1);
+	}
+
+	printf("Server: Message sent on socket %d: \n\n", newfd);
 }
 
 int main() {
@@ -171,10 +179,11 @@ int main() {
 			continue;
 
 		if(!fork()) {
-						//for child processes
+			close(sockfd);			//for child processes
 			printf("Proxy connected\n");		//listener not needed for child processes
-			
-			handleresponse(newfd);
+			while(1){
+				handleresponse(newfd);
+			}
 		}
 		close(newfd);			//parent doesn't need this
 	}

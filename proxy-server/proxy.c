@@ -216,7 +216,7 @@ void recvfromserver(int serverfd, int clientfd) {
                 exit(1);
         }
 
-        printf("Proxy-server: Message sent to the client.\n");
+        printf("Proxy-server: Message sent to the client.\n\n\n");
 }
 
 void connectServer(int clientfd, char *ip, char *port) {

@@ -66,7 +66,7 @@ int create_clientsocket(char *host, char* port) {
 
 //send message to the server on sockfd
 void sendmessage(int sockfd, char msg[]) {
-	if(send(sockfd, msg, 30, 0) == -1) {
+	if(send(sockfd, msg, MAX-1, 0) == -1) {
                 perror("send");
                 exit(1);
         }
@@ -81,7 +81,7 @@ void recvmessage(int sockfd) {
                 perror("recv");
                 exit(1);
         }
-
+	
         buf[n] = '\0';
 
         printf("client: received message from server - '%s'\n", buf);
@@ -98,9 +98,16 @@ int main(int argc, char *argv[]) {
 
 	sockfd = create_clientsocket(argv[1], argv[2]);		//create a socket and bind it to the ip and port of the server
 
-	sendmessage(sockfd, msg);			//send message to the server
+	while(1) {
+		int i = 0;
+		scanf("%d",&i);
+		if(i == 1){
+			break;
+		}
+		sendmessage(sockfd, msg);			//send message to the server
 
-	recvmessage(sockfd);				//receive message from the server
+		recvmessage(sockfd);				//receive message from the server
+	}
 
 	close(sockfd);					//close the socket
 
