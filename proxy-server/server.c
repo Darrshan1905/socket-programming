@@ -17,7 +17,7 @@
 
 #define PORT "5010"	//the port the users wil be connecting to
 #define BACKLOG 10 	//pending connections the queue can hold
-#define MAXBUF 100	   	//maximum buffer size
+#define MAXBUF 200	   	//maximum buffer size
 
 void sig_handler(int s) {
 	int saved_errno = errno;
@@ -136,9 +136,123 @@ int server_accept(int sockfd) {
 	return newfd;
 }
 
+//get the exact location of the file in server
+void getfileURL(char *route, char *fileURL) {
+  	char *question = strrchr(route, '?');
+  	if (question)
+    		*question = '\0';
+
+  	if (route[strlen(route) - 1] == '/') {
+    		strcat(route, "index.html");
+  	}
+
+	strcpy(fileURL, "");
+ 	strcat(fileURL, route);
+
+  	const char *dot = strrchr(fileURL, '.');
+  	if (!dot || dot == fileURL) {
+    		strcat(fileURL, ".html");
+  	}
+}
+
+//get the mime type of the file
+void getmimetype(char *file, char *mime)
+{
+  	const char *dot = strrchr(file, '.');
+
+  	if (dot == NULL)
+    		strcpy(mime, "text/html");
+
+  	else if (strcmp(dot, ".html") == 0)
+    		strcpy(mime, "text/html");
+
+  	else if (strcmp(dot, ".css") == 0)
+    		strcpy(mime, "text/css");
+
+  	else if (strcmp(dot, ".js") == 0)
+    		strcpy(mime, "application/js");
+
+  	else if (strcmp(dot, ".jpg") == 0)
+    		strcpy(mime, "image/jpeg");
+
+  	else if (strcmp(dot, ".png") == 0)
+    		strcpy(mime, "image/png");
+
+  	else if (strcmp(dot, ".gif") == 0)
+    		strcpy(mime, "image/gif");
+  
+	else
+    		strcpy(mime, "text/html");
+}
+
+//handle get requests
+void handlegetreq(int newfd, char req[]) {
+	char resheader[MAXBUF];
+	memset(resheader,'\0', sizeof(resheader) - 1);
+	char method[10], route[100];
+	char fileURL[100];
+	char mimetype[32];
+	char timebuf[100];
+	int headersize;
+
+	sscanf(req, "%s %s", method, route);
+
+	printf("%s %s\n",method, route);
+
+	getfileURL(route, fileURL);
+
+	printf("%s\n", fileURL);
+
+	FILE *file = fopen(fileURL + 1, "r");
+
+	if(!file) {
+		char response[MAXBUF];
+		sprintf(response, "HTTP/1.1 404 Not Found\r\n");
+		if((send(newfd, response, strlen(response), 0)) == -1)
+                	printf("send: error\n");
+		return;
+	}
+
+	getmimetype(fileURL, mimetype);
+	printf("%s\n", mimetype);
+
+	time_t t;
+	time(&t);
+	strcpy(timebuf, ctime(&t));
+
+	sprintf(resheader, "HTTP/1.1 200 OK\r\nDate: %s\r\nContent-Type: %s\r\n\r\n", timebuf, mimetype);
+	headersize = strlen(resheader);
+
+	fseek(file, 0, SEEK_END);
+	long fsize = ftell(file);
+	fseek(file, 0, SEEK_SET);
+
+	char *resbuffer = (char *)malloc(MAXBUF);
+	strcpy(resbuffer, resheader);
+	char *filebuffer = resbuffer + headersize;
+	fread(filebuffer, fsize, 1, file);
+
+	if((send(newfd, resbuffer, MAXBUF-1, 0)) == -1)
+		printf("send: error\n");
+
+	free(resbuffer);
+	fclose(file);
+}
+
+//handle post requests
+void handlepostreq(int newfd, char *body) {
+	char response[MAXBUF];
+	memset(response,'\0', sizeof(response) - 1);
+	printf("%s", body);
+	sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello, this is a POST response. Received data: %s", body);
+
+	if((send(newfd, response, MAXBUF-1, 0)) == -1)
+                printf("send: error\n");
+}
+
 //handle requests on new socket descriptor
-void handleresponse(int newfd) {
-	char buf[MAXBUF];	//used to hold the message sent by the client
+void handlerequests(int newfd) {
+	/*char buf[MAXBUF];	//used to hold the message sent by the client
 	int n = 0;              //number of bytes actually read
 
 	buf[0] = '\0';	
@@ -160,6 +274,28 @@ void handleresponse(int newfd) {
 	}
 
 	printf("Server: Message sent on socket %d: \n\n", newfd);
+	*/
+
+	int n;			//number of bytes actually read
+	char buf[MAXBUF];		//used to hold the message sent by the client
+
+	memset(buf,'\0', sizeof(buf) - 1);
+	//recieve requests from clients on newfd
+	if((n = recv(newfd, buf, MAXBUF - 1, 0)) == -1)
+        	perror("recv");
+	buf[n] = '\0';
+	printf("#%d", n);
+	printf("%s\n", buf);
+	//check whether a get or post request
+        if(strstr(buf, "GET") != NULL)
+		handlegetreq(newfd, buf);
+	else if(strstr(buf, "POST") != NULL) {
+		char *body = strstr(buf, "\r\n\r\n");
+		if(body != NULL) {
+			body += 4;
+			handlepostreq(newfd, body);
+		}
+	}
 }
 
 int main() {
@@ -182,8 +318,10 @@ int main() {
 			close(sockfd);			//for child processes
 			printf("Proxy connected\n");		//listener not needed for child processes
 			while(1){
-				handleresponse(newfd);
+				handlerequests(newfd);
 			}
+			close(newfd);
+			exit(1);
 		}
 		close(newfd);			//parent doesn't need this
 	}

@@ -12,7 +12,7 @@
 #include<arpa/inet.h> 
 
 #define BACKLOG 10 	//pending connections the queue can hold
-#define MAX 100	   	//maximum buffer size
+#define MAX 200	   	//maximum buffer size
 
 void sig_handler(int s) {
 	int saved_errno = errno;
@@ -178,7 +178,7 @@ int create_serversocket(char *host, char * port) {
 int recvfromclient(int clientfd, int serverfd) {
 	int n;
 	char buf[MAX];
-	memset(&buf,'\0', sizeof(buf));
+	memset(buf,'\0', sizeof(buf));
 
 	if((n = recv(clientfd, buf, MAX - 1, 0)) == -1) {
 		perror("rcv\n");
@@ -188,12 +188,12 @@ int recvfromclient(int clientfd, int serverfd) {
 	buf[n] = '\0';
 	printf("Proxy-server: Message from the client to server: %s\n",buf);
 
-	if((n = send(serverfd, buf, strlen(buf), 0)) == -1) {
+	if((n = send(serverfd, buf, MAX-1, 0)) == -1) {
 		perror("send\n");
 		exit(1);
 	}
 
-	printf("Proxy-server: Message sent to the server.\n");
+	printf("Proxy-server: Message sent to the server.  #%d\n", n);
 	
 	return 1;
 }
@@ -201,7 +201,7 @@ int recvfromclient(int clientfd, int serverfd) {
 void recvfromserver(int serverfd, int clientfd) {
         int n;
         char buf[MAX];
-        memset(&buf,'\0', sizeof(buf));
+        memset(buf,'\0', sizeof(buf) - 1);
 
         if((n = recv(serverfd, buf, MAX - 1, 0)) == -1) {
                 perror("rcv\n");
@@ -211,7 +211,7 @@ void recvfromserver(int serverfd, int clientfd) {
         buf[n] = '\0';
         printf("Proxy-server: Message from the server to client: %s\n",buf);
 
-        if((n = send(clientfd, buf, strlen(buf), 0)) == -1) {
+        if((n = send(clientfd, buf, MAX-1, 0)) == -1) {
                 perror("send\n");
                 exit(1);
         }
