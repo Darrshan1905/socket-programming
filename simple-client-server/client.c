@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
 
 	recvmessage(sockfd);				//receive message from the server
 
-	close(sockfd);					//close the socket
+	close(sockfd);					//close the socket.
 
 	return 0;
 }

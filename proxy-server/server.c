@@ -284,7 +284,6 @@ void handlerequests(int newfd) {
 	if((n = recv(newfd, buf, MAXBUF - 1, 0)) == -1)
         	perror("recv");
 	buf[n] = '\0';
-	printf("#%d", n);
 	printf("%s\n", buf);
 	//check whether a get or post request
         if(strstr(buf, "GET") != NULL)
@@ -296,6 +295,10 @@ void handlerequests(int newfd) {
 			handlepostreq(newfd, body);
 		}
 	}
+
+	//close the new socket descriptor once the communication is over
+        close(newfd);
+        exit(0);
 }
 
 int main() {
@@ -320,8 +323,6 @@ int main() {
 			while(1){
 				handlerequests(newfd);
 			}
-			close(newfd);
-			exit(1);
 		}
 		close(newfd);			//parent doesn't need this
 	}

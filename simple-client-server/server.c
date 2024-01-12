@@ -8,21 +8,11 @@
 #include<netinet/in.h>
 #include<netdb.h>
 #include<arpa/inet.h>
-#include<sys/wait.h>
-#include<signal.h>
 #include<time.h>
 
 #define PORT "3490"	//the port the users wil be connecting to
 #define BACKLOG 10 	//pending connections the queue can hold
 #define MAX 100	   	//maximum buffer size
-
-void sig_handler(int s) {
-	int saved_errno = errno;
-
-	//errno might be overwritten by waitpid, so we save and restore it
-	while(waitpid(-1, NULL, WNOHANG) > 0);
-	errno = saved_errno;
-}
 
 //get the socket address and return in network representation
 void *get_addr(struct sockaddr *sa ) {
@@ -94,22 +84,6 @@ void server_listen(int sockfd) {
         }
 }
 
-//kill all the zombie processes
-void signal_handler() {
-	struct sigaction sa;
-	
-	sa.sa_handler = sig_handler;
-        sigemptyset(&sa.sa_mask);
-        sa.sa_flags = SA_RESTART;
-
-        if(sigaction(SIGCHLD, &sa, NULL) == -1) {
-                perror("sigaction");
-                exit(1);
-        }
-
-        printf("server: waiting for connections...\n");
-}
-
 //accept an incoming connection
 int server_accept(int sockfd) {
 	int newfd;				//new socket descriptor after accepting the connection request
@@ -163,8 +137,6 @@ int main() {
 	sockfd = create_serversocket();		//create socket and bind it to the server's address and port
 
 	server_listen(sockfd);			//make the server listen for incoming connections
-
-	signal_handler();			//kill dead processes
 
 	//accept() loop
 	while(1) {
