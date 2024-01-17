@@ -9,6 +9,7 @@
 #include<netdb.h>
 #include<arpa/inet.h>
 #include<time.h>
+#include<sys/poll.h>
 
 #define PORT "3490"	//the port the users wil be connecting to
 #define BACKLOG 10 	//pending connections the queue can hold
@@ -85,37 +86,55 @@ void server_listen(int sockfd) {
 }
 
 //accept an incoming connection
-int server_accept(int sockfd) {
+void server_accept(int sockfd, struct pollfd **pfds, int *fd_size, int *fd_count) {
 	int newfd;				//new socket descriptor after accepting the connection request
 	struct sockaddr_storage their_addr;	//connector's address information
         socklen_t sin_size;			//size of struct sockaddr
 	char s[INET6_ADDRSTRLEN];		//used to hold the ip address in presentation format
-
+	
 	sin_size = sizeof their_addr;
 
         newfd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);	//accept the incoming connection on sockfd and store the											//connecter's address
         
 	if(newfd == -1) {
         	perror("accept");
-                return newfd;
+                exit(1);
         }
+
+	if(*fd_count == *fd_size) {
+		*pfds = realloc(*pfds, (*fd_size + 5) * sizeof(struct pollfd));
+
+		if(*pfds == NULL) {
+			perror("realloc: ");
+			exit(1);
+		}
+
+		*fd_size += 5;
+	}
+
+	(*pfds)[*fd_count].fd = newfd;
+	(*pfds)[*fd_count].events = POLLIN;
+
+	(*fd_count)++;
 	
 	//convert the ip address from network to presentation format
         inet_ntop(their_addr.ss_family, get_addr((struct sockaddr *) &their_addr), s, sizeof s);
         printf("server: got connection from %s\n", s);
-
-	return newfd;
 }
 
 //send or receive messages on new socket descriptor
-void sendrecv_message(int newfd) {
+void sendrecv_message(struct pollfd *pfds) {
 	int n;			//number of bytes actually read
 	char buf[MAX];		//used to hold the message sent by the client
 
 	//recieve message from clients on newfd
-	if((n = recv(newfd, buf, MAX - 1, 0)) == -1)
+	if((n = recv(pfds -> fd, buf, MAX - 1, 0)) == -1) {
         	perror("recv");
+		exit(1);
+	}
+
         printf("Server: received '%s' from client", buf);
+
         time_t t;
         time(&t);
         strcat(buf, " ");
@@ -123,23 +142,36 @@ void sendrecv_message(int newfd) {
         strcat(buf, ctime(&t));	//concatenate the client's message and the current timestamp
 
 	//send message to clients on newfd
-	if(send(newfd, buf, 70, 0) == -1)
+	if(send(pfds -> fd, buf, MAX - 1, 0) == -1) {
         	perror("send");
+		exit(1);
+	}
 
 	//close the new socket descriptor once the communication is over
-        close(newfd);
-        exit(0);
+        close(pfds -> fd);
+	pfds -> fd *= -1;
 }
 
 int main() {
 	int sockfd, newfd;
+	struct sockaddr_storage their_addr; // Client address
+	socklen_t addrlen;
+	nfds_t nfds = 0;
+	int fd_count = 0;
+        int fd_size = 5;
+        struct pollfd *pfds = malloc(sizeof *pfds * fd_size);	
 
 	sockfd = create_serversocket();		//create socket and bind it to the server's address and port
 
 	server_listen(sockfd);			//make the server listen for incoming connections
 
+	pfds[0].fd = sockfd;
+	pfds[0].events = POLLIN;
+
+	fd_count = 1;
+
 	//accept() loop
-	while(1) {
+	/*while(1) {
 		newfd = server_accept(sockfd);
 		
 	        if(newfd == -1)
@@ -151,7 +183,35 @@ int main() {
 			sendrecv_message(newfd);
 		}
 		close(newfd);			//parent doesn't need this
-	}
+	}*/
 
+	printf("Server: waiting for connections...\n");
+
+	while(1) {
+		nfds = fd_count;
+
+		int poll_count = poll(pfds, nfds, -1);
+
+		if(poll_count == -1) {
+			perror("poll");
+			exit(1);
+		}
+
+		for(int i = 0; i < nfds; i++) {
+			if(pfds[i].fd <= 0)
+				continue;
+
+			if((pfds[i].revents & POLLIN) == POLLIN) {
+				if(pfds[i].fd == sockfd) {
+					server_accept(sockfd, &pfds, &fd_size, &fd_count);
+				}
+				else {
+					sendrecv_message(pfds + i);
+				}
+			}
+		}
+	}
+	
+	close(sockfd);
 	return 0;
 }
