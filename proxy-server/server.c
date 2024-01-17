@@ -14,18 +14,11 @@
 #include<unistd.h>
 #include<resolv.h>
 #include<pthread.h>
+#include<sys/poll.h>
 
 #define PORT "5010"	//the port the users wil be connecting to
 #define BACKLOG 10 	//pending connections the queue can hold
 #define MAXBUF 200	   	//maximum buffer size
-
-void sig_handler(int s) {
-	int saved_errno = errno;
-
-	//errno might be overwritten by waitpid, so we save and restore it
-	while(waitpid(-1, NULL, WNOHANG) > 0);
-	errno = saved_errno;
-}
 
 //get the socket address and return in network representation
 void *get_addr(struct sockaddr *sa ) {
@@ -97,24 +90,8 @@ void server_listen(int sockfd) {
         }
 }
 
-//kill all the zombie processes
-void signal_handler() {
-	struct sigaction sa;
-	
-	sa.sa_handler = sig_handler;
-        sigemptyset(&sa.sa_mask);
-        sa.sa_flags = SA_RESTART;
-
-        if(sigaction(SIGCHLD, &sa, NULL) == -1) {
-                perror("sigaction");
-                exit(1);
-        }
-
-        printf("server: waiting for connections...\n");
-}
-
 //accept an incoming connection
-int server_accept(int sockfd) {
+void server_accept(int sockfd, struct pollfd **pfds, int *fd_size, int *fd_count) {
 	int newfd;				//new socket descriptor after accepting the connection request
 	struct sockaddr_storage their_addr;	//connector's address information
         socklen_t sin_size;			//size of struct sockaddr
@@ -126,14 +103,28 @@ int server_accept(int sockfd) {
         
 	if(newfd == -1) {
         	perror("accept");
-                return -1;
+                exit(1);
         }
 	
+	if(*fd_count == *fd_size) {
+                *pfds = realloc(*pfds, (*fd_size + 5) * sizeof(struct pollfd));
+
+                if(*pfds == NULL) {
+                        perror("realloc: ");
+                        exit(1);
+                }
+
+                *fd_size += 5;
+        }
+
+        (*pfds)[*fd_count].fd = newfd;
+        (*pfds)[*fd_count].events = POLLIN;
+
+        (*fd_count)++;
+
 	//convert the ip address from network to presentation format
         inet_ntop(their_addr.ss_family, get_addr((struct sockaddr *) &their_addr), s, sizeof s);
         printf("server: got connection from %s\n", s);
-
-	return newfd;
 }
 
 //get the exact location of the file in server
@@ -251,7 +242,7 @@ void handlepostreq(int newfd, char *body) {
 }
 
 //handle requests on new socket descriptor
-void handlerequests(int newfd) {
+void handlerequests(struct pollfd *pfds) {
 	/*char buf[MAXBUF];	//used to hold the message sent by the client
 	int n = 0;              //number of bytes actually read
 
@@ -281,39 +272,44 @@ void handlerequests(int newfd) {
 
 	memset(buf,'\0', sizeof(buf) - 1);
 	//recieve requests from clients on newfd
-	if((n = recv(newfd, buf, MAXBUF - 1, 0)) == -1)
+	if((n = recv(pfds -> fd, buf, MAXBUF - 1, 0)) == -1)
         	perror("recv");
 	buf[n] = '\0';
 	printf("%s\n", buf);
 	//check whether a get or post request
         if(strstr(buf, "GET") != NULL)
-		handlegetreq(newfd, buf);
+		handlegetreq(pfds -> fd, buf);
 	else if(strstr(buf, "POST") != NULL) {
 		char *body = strstr(buf, "\r\n\r\n");
 		if(body != NULL) {
 			body += 4;
-			handlepostreq(newfd, body);
+			handlepostreq(pfds -> fd, body);
 		}
 	}
-
-	//close the new socket descriptor once the communication is over
-        close(newfd);
-        exit(0);
 }
 
 int main() {
 	int sockfd, newfd;
-
+	nfds_t nfds = 0;
+	int fd_size = 5;
+	int fd_count = 0;
+	struct pollfd *pfds = malloc(sizeof *pfds * fd_size);
+	
 	sockfd = create_serversocket();		//create socket and bind it to the server's address and port
 
 	server_listen(sockfd);			//make the server listen for incoming connections
 
-	signal_handler();			//kill dead processes
+	pfds[0].fd = sockfd;
+	pfds[0].events = POLLIN;
+
+	fd_count = 1;
+
+	printf("server: waiting for connections...\n");
 
 	//accept() loop
-	while(1) {
-		newfd = server_accept(sockfd);
-		
+	/*while(1) {
+	 	newfd = server_accept(sockfd);
+
 	        if(newfd == -1)
 			continue;
 
@@ -323,9 +319,33 @@ int main() {
 			while(1){
 				handlerequests(newfd);
 			}
+			close(newfd);
+			exit(1);
 		}
 		close(newfd);			//parent doesn't need this
-	}
+	}*/
 
+	while(1) {
+		nfds = fd_count;
+
+		int poll_count;
+	        if((poll_count= poll(pfds, nfds, -1)) == -1) {
+			perror("poll");
+			exit(1);
+		}
+
+		for(int i = 0; i < nfds; i++) {
+			if(pfds[i].revents & POLLIN) {
+				if(pfds[i].fd == sockfd) {
+					server_accept(sockfd, &pfds, &fd_size, &fd_count);
+					printf("Proxy connected\n");
+				}
+				else {
+					handlerequests(pfds + i);
+				}
+			}
+		}
+	}
+	close(sockfd);
 	return 0;
 }
