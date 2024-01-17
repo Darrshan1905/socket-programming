@@ -10,17 +10,10 @@
 #include<sys/wait.h>
 #include<netinet/in.h>
 #include<arpa/inet.h> 
+#include<sys/poll.h>
 
 #define BACKLOG 10 	//pending connections the queue can hold
 #define MAX 200	   	//maximum buffer size
-
-void sig_handler(int s) {
-	int saved_errno = errno;
-
-	//errno might be overwritten by waitpid, so we save and restore it
-	while(waitpid(-1, NULL, WNOHANG) > 0);
-	errno = saved_errno;
-}
 
 //get the socket address and return in network representation
 void *get_addr(struct sockaddr *sa ) {
@@ -92,24 +85,8 @@ void proxy_listen(int sockfd) {
         }
 }
 
-//kill all the zombie processes
-void signal_handler() {
-	struct sigaction sa;
-	
-	sa.sa_handler = sig_handler;
-        sigemptyset(&sa.sa_mask);
-        sa.sa_flags = SA_RESTART;
-
-        if(sigaction(SIGCHLD, &sa, NULL) == -1) {
-                perror("sigaction");
-                exit(1);
-        }
-
-        printf("proxy-server: waiting for connections...\n");
-}
-
 //accept an incoming connection
-int proxy_accept(int sockfd) {
+void proxy_accept(int sockfd, struct pollfd **pfds, int *fd_size, int *fd_count) {
 	int newfd;				//new socket descriptor after accepting the connection request
 	struct sockaddr_storage their_addr;	//connector's address information
         socklen_t sin_size;			//size of struct sockaddr
@@ -121,14 +98,28 @@ int proxy_accept(int sockfd) {
         
 	if(newfd == -1) {
         	perror("accept");
-                return newfd;
+                exit(1);
         }
+
+	if(*fd_count == *fd_size) {
+		*pfds = realloc(*pfds, (*fd_size + 5) * sizeof(struct pollfd));
+
+		if(*pfds == NULL) {
+			perror("realloc: ");
+			exit(1);
+		}
+
+		*fd_size += 5;
+	}
+
+	(*pfds)[*fd_count].fd = newfd;
+	(*pfds)[*fd_count].events = POLLIN;
+
+	(*fd_count)++;
 	
 	//convert the ip address from network to presentation format
         inet_ntop(their_addr.ss_family, get_addr((struct sockaddr *) &their_addr), s, sizeof s);
         printf("proxy-server: got connection from %s\n", s);
-
-	return newfd;
 }
 
 int create_serversocket(char *host, char * port) {
@@ -219,22 +210,26 @@ void recvfromserver(int serverfd, int clientfd) {
         printf("Proxy-server: Message sent to the client.\n\n\n");
 }
 
-void connectServer(int clientfd, char *ip, char *port) {
+void connectServer(struct pollfd *pfds, char *ip, char *port) {
 	int serverfd;
 	int retflag = 0;
 	
 	serverfd = create_serversocket(ip, port);
 	
 	while(1) {
-		retflag = recvfromclient(clientfd, serverfd);
+		retflag = recvfromclient(pfds -> fd, serverfd);
 		if(retflag)
-			recvfromserver(serverfd, clientfd);
+			recvfromserver(serverfd, pfds -> fd);
 	}
 }
 
 int main(int argc, char *argv[]) {
 	char port[10], ip[15], proxy_port[10];
 	int proxyfd, newfd;
+	nfds_t nfds = 0;
+	int fd_count = 0;
+	int fd_size = 5;
+	struct pollfd *pfds = malloc(sizeof *pfds * fd_size);
 
 	if(argc != 4) {
 		printf("usage: ./proxy-server.out server-ip server-port proxy-port.\n");
@@ -251,11 +246,16 @@ int main(int argc, char *argv[]) {
 
 	proxyfd = create_proxysocket(proxy_port);		//create socket and bind it to the server's address and port
 
-	proxy_listen(proxyfd);			//make the server listen for incoming connections
+	proxy_listen(proxyfd);			//make the proxy-server listen for incoming connections
 
-	signal_handler();			//kill dead processes
+	pfds[0].fd = proxyfd;
+	pfds[0].events = POLLIN;
 
-	while(1) {
+	fd_count = 1;
+
+	printf("proxy-server: waiting for connections...\n");
+
+	/*while(1) {
 		newfd = proxy_accept(proxyfd);
 
 	        if(newfd == -1)
@@ -267,5 +267,29 @@ int main(int argc, char *argv[]) {
 			connectServer(newfd, ip, port);
 		}
 		close(newfd);			//parent doesn't need this
+	}*/
+
+	while(1) {
+		nfds = fd_count;
+		int poll_count = poll(pfds, nfds, -1);
+
+		if(poll_count == -1) {
+			perror("poll: ");
+			exit(1);
+		}
+
+		for(int i = 0; i < nfds; i++) {
+			if((pfds[i].revents & POLLIN) == POLLIN) {
+				if(pfds[i].fd == proxyfd) {
+					proxy_accept(proxyfd, &pfds, &fd_size, &fd_count);
+				}
+				else {
+					connectServer(pfds + i, ip, port);
+				}
+			}
+		}
 	}
+
+	close(proxyfd);
+	return 0;
 }
