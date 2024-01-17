@@ -132,8 +132,15 @@ void sendrecv_message(struct pollfd *pfds) {
         	perror("recv");
 		exit(1);
 	}
-
-        printf("Server: received '%s' from client", buf);
+		
+	FILE *fp = fopen("file2.txt", "w");
+	if(fwrite(buf, 1, strlen(buf), fp) == -1) {
+		perror("write: ");
+		exit(1);
+	}
+	buf[n-1] = '\0';
+        printf("Server: received %s from client\n", buf);
+	
 
         time_t t;
         time(&t);
@@ -150,6 +157,7 @@ void sendrecv_message(struct pollfd *pfds) {
 	//close the new socket descriptor once the communication is over
         close(pfds -> fd);
 	pfds -> fd *= -1;
+	fclose(fp);
 }
 
 int main() {

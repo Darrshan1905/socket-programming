@@ -21,7 +21,7 @@ void *get_addr(struct sockaddr *sa) {
 }
 
 //creating a socket for client and returning the socket descriptor
-int create_clientsocket(char *host, char *port) {
+int create_clientsocket(char *host) {
 	int sockfd;
 	struct addrinfo hints, *servinfo, *p;
 	char s[INET6_ADDRSTRLEN];
@@ -32,7 +32,7 @@ int create_clientsocket(char *host, char *port) {
         hints.ai_socktype = SOCK_STREAM;		//TCP stream socket
 
 	//gives a pointer to a linked list, servinfo of results
-        if((rv = getaddrinfo(host, port, &hints, &servinfo)) != 0) {
+        if((rv = getaddrinfo(host, PORT, &hints, &servinfo)) != 0) {
                 fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
                 return 1;
         }
@@ -67,7 +67,18 @@ int create_clientsocket(char *host, char *port) {
 
 //send message to the server on sockfd
 void sendmessage(int sockfd, char msg[]) {
-	if(send(sockfd, msg, 30, 0) == -1) {
+	char buff[100];
+
+	FILE *fd = fopen("file.txt", "r");
+	int rv;
+	if((rv = fread(&buff, 1, sizeof(buff), fd)) == -1) {
+		perror("read");
+		exit(1);
+	}
+	buff[rv - 1] = '\0';
+	printf("%d %s", strlen(buff), buff);
+
+	if(send(sockfd, buff, strlen(buff), 0) == -1) {
                 perror("send");
                 exit(1);
         }
@@ -96,12 +107,12 @@ int main(int argc, char *argv[]) {
 	int sockfd;
 	char msg[30] = "Hello from Client";
 
-	/*if(argc != 2) {
+	if(argc != 2) {
 		fprintf(stderr,"usage: client hostname\n");
 		exit(1);
-	}*/
+	}
 
-	sockfd = create_clientsocket(argv[1], argv[2]);		//create a socket and bind it to the ip and port of the server
+	sockfd = create_clientsocket(argv[1]);		//create a socket and bind it to the ip and port of the server
 
 	sendmessage(sockfd, msg);			//send message to the server
 
