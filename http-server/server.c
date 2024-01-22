@@ -139,7 +139,7 @@ void getfileURL(char *route, char *fileURL) {
     		*question = '\0';
 
   	if (route[strlen(route) - 1] == '/') {
-    		strcat(route, "index.html");
+    		strcpy(route, "/index.html");
   	}
 	
 	strcpy(fileURL, "");
@@ -214,7 +214,7 @@ void handlegetreq(int newfd, char req[]) {
 	time(&t);
 	strcpy(timebuf, ctime(&t));
 
-	sprintf(resheader, "HTTP/1.1 200 OK\r\nDate: %s\r\nContent-Type: %s\r\n\r\n", timebuf, mimetype);
+	sprintf(resheader, "HTTP/1.1 200 OK\r\nContent-Type: %s\r\n\r\n", mimetype);
 	headersize = strlen(resheader);
 
 	fseek(file, 0, SEEK_END);

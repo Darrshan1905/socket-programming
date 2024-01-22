@@ -13,7 +13,7 @@
 
 #define PORT "3490"	//the port the users wil be connecting to
 #define BACKLOG 10 	//pending connections the queue can hold
-#define MAX 100	   	//maximum buffer size
+#define MAX 100000	   	//maximum buffer size
 
 //get the socket address and return in network representation
 void *get_addr(struct sockaddr *sa ) {

@@ -11,7 +11,7 @@
 #include<time.h>
 
 #define PORT "3490"	//port number of the server
-#define MAX 100		//maximum buffer size
+#define MAX 100000		//maximum buffer size
 
 //get the sock address and return in network representation
 void *get_addr(struct sockaddr *sa) { 
@@ -67,7 +67,7 @@ int create_clientsocket(char *host) {
 
 //send message to the server on sockfd
 void sendmessage(int sockfd, char msg[]) {
-	char buff[100];
+	char buff[MAX];
 
 	FILE *fd = fopen("file.txt", "r");
 	int rv;
