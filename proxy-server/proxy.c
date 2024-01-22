@@ -244,10 +244,17 @@ void connectServer(int clientfd) {
         *host_end = '\0';
  	printf("1");
         char* port_start = strstr(host_start,":");
-        if(port_start != NULL)
-                *port_start = '\0';
+        char* port;
+	char http_port[100] = "80";
 
-        char* port = port_start + 1;
+	if(port_start != NULL) {
+                *port_start = '\0';
+		port = port_start + 1;
+	}
+	else {
+		port = http_port;
+	}
+	
 	printf("%s %s\n",host_start,port);
 	serverfd = create_serversocket(host_start, port);
         printf("%d", serverfd);
