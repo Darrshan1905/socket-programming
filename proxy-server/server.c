@@ -134,7 +134,7 @@ void getfileURL(char *route, char *fileURL) {
     		*question = '\0';
 
   	if (route[strlen(route) - 1] == '/') {
-    		strcat(route, "index.html");
+    		strcpy(route, "/index.html");
   	}
 
 	strcpy(fileURL, "");
@@ -286,6 +286,8 @@ void handlerequests(struct pollfd *pfds) {
 			handlepostreq(pfds -> fd, body);
 		}
 	}
+	close(pfds->fd);
+	pfds->fd*=-1;
 }
 
 int main() {
