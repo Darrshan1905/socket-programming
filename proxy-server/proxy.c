@@ -275,7 +275,7 @@ int main(int argc, char *argv[]) {
 	int proxyfd, newfd;
 
 	if(argc != 2) {
-		printf("usage: ./proxy-server.out server-ip server-port proxy-port.\n");
+		printf("usage: ./proxy-server.out proxy-port.\n");
 		exit(1);
 	}
 
