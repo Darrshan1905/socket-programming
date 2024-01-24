@@ -178,8 +178,6 @@ int proxy_accept(int sockfd) {
 }
 
 int create_serversocket(char *host, char * port) {
-	printf("0");
-
 	int sockfd;
 	struct addrinfo hints, *servinfo, *p;
 	char s[INET6_ADDRSTRLEN];
@@ -240,6 +238,7 @@ void handle_message(SSL* ssl1, SSL* ssl2, int clientfd, int serverfd) {
 		return;
 
 	buf[n] = '\0';
+//	printf("%s\n", buf);
 
 	SSL_write(ssl2, buf, n);
 
@@ -261,7 +260,7 @@ void connectServer(int newfd) {
 	char method[256], host[256];
 	char buf[MAX], data[MAX];
 
-	if((c = read(newfd, buf, sizeof(buf))) < 0) {
+	if((c = read(newfd, buf, sizeof(buf))) <= 0) {
 		perror("read");
 		exit(1);
 	}
@@ -270,7 +269,7 @@ void connectServer(int newfd) {
 
 	strcpy(data,buf);
 
-	printf("%s", buf);
+	//printf("%s", buf);
 
 	sscanf(buf, "%s %s", method, host);
 
@@ -293,18 +292,21 @@ void connectServer(int newfd) {
 			exit(1);
 		}
 
-		char *response = "HTTP/1.1 200 Connection established";
-		write(newfd, response, strlen(response));
-
+		printf("Host: %s Port: %s\n", host, port);
+		char *response = "HTTP/1.1 200 Connection established\r\n\r\n";
+		int e = write(newfd, response, strlen(response));
+	
 		SSL *ssl2 = SSL_new(ctx2);
 		SSL_set_fd(ssl2, serverfd);
-
-		if(SSL_connect(ssl2) == -1) {
+		printf("hello world\n");
+		int j;
+		if((j = SSL_connect(ssl2)) == -1) {
+			printf("%d\n", j);
 			ERR_print_errors_fp(stderr);
 			close(newfd);
 			exit(1);
 		}
-
+		
 		SSL* ssl1 = SSL_new(ctx1);
 		SSL_set_fd(ssl1, newfd);
 
@@ -316,6 +318,7 @@ void connectServer(int newfd) {
 		 	return;
 		}
 
+		printf("hf\n");
 		handle_message(ssl1, ssl2, newfd, serverfd);
 
 		SSL_free(ssl2);
@@ -382,4 +385,7 @@ int  main() {
 		}
 		close(newfd);			//parent doesn't need this
 	}
+	SSL_CTX_free(ctx1);
+	close(proxyfd);
+	return 0;
 }

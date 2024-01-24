@@ -177,14 +177,20 @@ int main() {
 	//create client socket
 	sockfd = create_clientsocket();
 
+	printf("%d", sockfd);
 	//link the ssl object to the socket descriptor
 	SSL_set_fd(ssl, sockfd);	
 
+	//printf("%d", sockfd);
 	//ssl handshake
-	if(SSL_connect(ssl) == -1) {
+	int rv;
+	if((rv = SSL_connect(ssl)) == -1) {
+		printf(" %d", rv);
 		ERR_print_errors_fp(stderr);
 		exit(1);
 	}
+
+	printf("%d", sockfd);
 
 	while(1) {
 		int req_method;
