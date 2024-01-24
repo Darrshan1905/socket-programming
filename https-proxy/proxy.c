@@ -58,7 +58,7 @@ void create_ssl_context1() {
         SSL_load_error_strings();
         OpenSSL_add_ssl_algorithms();
 
-        const SSL_METHOD *method = TLS_client_method();
+        const SSL_METHOD *method = TLS_server_method();
 
         ctx1 = SSL_CTX_new(method);
 
