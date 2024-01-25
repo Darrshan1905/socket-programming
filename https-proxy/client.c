@@ -95,12 +95,12 @@ int create_clientsocket() {
 	return sockfd;
 }
 
-void sendconnreq(SSL *ssl) {
+void sendconnreq(int sockfd) {
 	char req[1024];
 
 	sprintf(req, "CONNECT %s:%s HTTP/1.1\r\nHost:%s\r\n\r\n", SERVER_IP, SERVER_PORT, SERVER_IP);
 
-	if((SSL_write(ssl, req, strlen(req))) == -1) {
+	if((send(sockfd, req, strlen(req), 0)) == -1) {
 		perror("send");
 		exit(1);
 	}
@@ -135,6 +135,18 @@ void sendpostreq(SSL *ssl) {
         printf("Post request sent to the destination server\n");
 }
 
+void connrecv(int sockfd) {
+	int n;
+	char buff[MAX];
+	memset(buff, '\0', sizeof(buff) - 1);
+	if((n = recv(sockfd, buff, sizeof(buff) - 1, 0)) == -1) {
+		perror("recv\n");
+		exit(1);
+	}
+
+	printf("Received from proxy: %s\n", buff);
+}	
+
 void recvmessage(SSL *ssl) {
 	int n;			//number of bytes actually received
 	char buf[MAX];
@@ -146,7 +158,7 @@ void recvmessage(SSL *ssl) {
 		return;
 	}
 
-	if((n = SSL_read(ssl, buf, sizeof(buf) - 1)) == -1) {
+	if((n = SSL_read(ssl, buf, sizeof(buf) - 1)) <= -1) {
                 perror("recv\n");
 		exit(1);
         }
@@ -167,6 +179,7 @@ int main() {
 	int sockfd;
 	SSL *ssl;
 	SSL_CTX *context;
+	int connflag = 0;
 	
 	//create and initialize an ssl context
 	context = create_SSL_context();
@@ -176,20 +189,6 @@ int main() {
 
 	//create client socket
 	sockfd = create_clientsocket();
-
-	printf("%d", sockfd);
-	//link the ssl object to the socket descriptor
-	SSL_set_fd(ssl, sockfd);	
-
-	//printf("%d", sockfd);
-	//ssl handshake
-	int rv;
-	if((rv = SSL_connect(ssl)) == -1) {
-		printf(" %d", rv);
-		ERR_print_errors_fp(stderr);
-		exit(1);
-	}
-
 	printf("%d", sockfd);
 
 	while(1) {
@@ -198,9 +197,24 @@ int main() {
 		printf("Enter the request method:\n0.CONNECT\n1.GET\n2.POST\n3.QUIT\n");
 		scanf("%d", &req_method);
 
+		if(connflag) {
+			SSL_set_fd(ssl, sockfd);
+
+        		//printf("%d", sockfd);
+        		//ssl handshake
+        		int rv;
+        		if((rv = SSL_connect(ssl)) == -1) {
+                		printf(" %d", rv);
+                		ERR_print_errors_fp(stderr);
+        	        	exit(1);
+	        	}
+			connflag = 0;
+		}
+
 		if(req_method == 0) {
-			sendconnreq(ssl);
-			recvmessage(ssl);
+			sendconnreq(sockfd);
+			connrecv(sockfd);
+			connflag = 1;
 		}
 		else if(req_method == 1) {
 			sendgetreq(ssl);
