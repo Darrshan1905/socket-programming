@@ -81,7 +81,6 @@ void create_ssl_context1() {
 void create_ssl_context2() {
 	SSL_library_init();
         SSL_load_error_strings();
-        OpenSSL_add_ssl_algorithms();
 
         const SSL_METHOD *method = TLS_client_method();
 
