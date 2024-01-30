@@ -31,7 +31,7 @@ void *get_addr(struct sockaddr *sa ) {
 SSL_CTX *create_SSL_context() {
         SSL_library_init();
         SSL_load_error_strings();
-        OpenSSL_add_ssl_algorithms();
+        OpenSSL_add_all_algorithms();
 
         const SSL_METHOD *method = TLS_server_method();
 
@@ -163,6 +163,7 @@ void server_accept(int sockfd, struct pollfd **pfds, int *fd_size, int *fd_count
         	close(newfd);
         	exit(1);
 	}
+	printf("4");
 	(*sslfds)[*fd_count] = ssl;
 
         (*fd_count)++;

@@ -56,11 +56,9 @@ void signal_handler() {
 void create_ssl_context1() {
 	SSL_library_init();
         SSL_load_error_strings();
-        OpenSSL_add_ssl_algorithms();
+        OpenSSL_add_all_algorithms();
 
-        const SSL_METHOD *method = TLS_server_method();
-
-        ctx1 = SSL_CTX_new(method);
+        ctx1 = SSL_CTX_new(TLS_server_method());
 
         if(ctx1 == NULL) {
                 ERR_print_errors_fp(stderr);
@@ -82,9 +80,7 @@ void create_ssl_context2() {
 	SSL_library_init();
         SSL_load_error_strings();
 
-        const SSL_METHOD *method = TLS_client_method();
-
-        ctx2 = SSL_CTX_new(method);
+        ctx2 = SSL_CTX_new(TLS_client_method());
 
         if(ctx2 == NULL) {
                 ERR_print_errors_fp(stderr);
@@ -160,7 +156,7 @@ int proxy_accept(int sockfd) {
 	struct sockaddr_storage their_addr;	//connector's address information
         socklen_t sin_size;			//size of struct sockaddr
 	char s[INET6_ADDRSTRLEN];		//used to hold the ip address in presentation format
-	sin_size = sizeof their_addr;
+	sin_size = sizeof(their_addr);
 
         newfd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);	//accept the incoming connection on sockfd and store the											//connecter's address
 
@@ -182,7 +178,7 @@ int create_serversocket(char *host, char * port) {
 	char s[INET6_ADDRSTRLEN];
 	int rv;
 
-	memset(&hints, 0, sizeof hints);		//make the struct initially empty
+	memset(&hints, 0, sizeof(hints));		//make the struct initially empty
         hints.ai_family = AF_UNSPEC;			//can be either ipv4 or ipv6
         hints.ai_socktype = SOCK_STREAM;		//TCP stream socket
 
@@ -260,6 +256,7 @@ void connectServer(int newfd) {
 	char buf[MAX], data[MAX];
 
 	if((c = read(newfd, buf, sizeof(buf))) <= 0) {
+		close(newfd);
 		perror("read");
 		exit(1);
 	}
@@ -293,18 +290,21 @@ void connectServer(int newfd) {
 
 		printf("Host: %s Port: %s\n", host, port);
 		char *response = "HTTP/1.1 200 Connection established\r\n\r\n";
-		int e = write(newfd, response, strlen(response));
-	
+		write(newfd, response, strlen(response));
+		int i;
 		SSL *ssl2 = SSL_new(ctx2);
 		SSL_set_fd(ssl2, serverfd);
 		printf("hello world\n");
 		int j;
-		if((j = SSL_connect(ssl2)) == -1) {
+		if((j = SSL_connect(ssl2)) <= 0) {
 			printf("%d\n", j);
 			ERR_print_errors_fp(stderr);
 			close(newfd);
 			exit(1);
 		}
+
+		 printf("Enter something: \n");
+                scanf("%d", &i);
 		
 		SSL* ssl1 = SSL_new(ctx1);
 		SSL_set_fd(ssl1, newfd);
@@ -366,7 +366,7 @@ int  main() {
 
 	proxy_listen(proxyfd);			//make the server listen for incoming connections
 
-	signal_handler();			//kill dead processes
+//	signal_handler();			//kill dead processes
 
 	while(1) {
 		newfd = proxy_accept(proxyfd);
@@ -375,7 +375,11 @@ int  main() {
 			continue;
 
 		if(!fork()) {			//for child processes
-			close(proxyfd);		//listener not needed for child processes
+			int i;		
+			printf("jj\n");	
+			scanf("%d", &i);
+			printf("#*!%d\n", i);			
+			//close(proxyfd);		//listener not needed for child processes
 
 			connectServer(newfd);
 
