@@ -55,8 +55,8 @@ void signal_handler() {
 
 void create_ssl_context1() {
 	SSL_library_init();
+	OpenSSL_add_all_algorithms();
         SSL_load_error_strings();
-        OpenSSL_add_all_algorithms();
 
         ctx1 = SSL_CTX_new(TLS_server_method());
 
@@ -137,7 +137,7 @@ int create_proxysocket() {
                 exit(1);
         }
 	
-	printf("Socket binded\n");
+	printf("Socket binded , sockfd:%d\n", sockfd);
 	
 	return sockfd;
 }
@@ -162,13 +162,13 @@ int proxy_accept(int sockfd) {
 
 	if(newfd == -1) {
         	perror("accept");
-                exit(1);
+                return -1;
         }
 
 	//convert the ip address from network to presentation format
         inet_ntop(their_addr.ss_family, get_addr((struct sockaddr *) &their_addr), s, sizeof s);
         printf("proxy-server: got connection from %s\n", s);
-
+	printf("newfd: %d\n",newfd);
 	return newfd;
 }
 
@@ -182,15 +182,11 @@ int create_serversocket(char *host, char * port) {
         hints.ai_family = AF_UNSPEC;			//can be either ipv4 or ipv6
         hints.ai_socktype = SOCK_STREAM;		//TCP stream socket
 
-	printf("1");
-
 	//gives a pointer to a linked list, servinfo of results
         if((rv = getaddrinfo(host, port, &hints, &servinfo)) != 0) {
                 fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
                 return 1;
         }
-
-	printf("%d", rv);
 
 	//loop through each result in the servinfo and bind to the first you can
         for(p = servinfo; p != NULL; p = p -> ai_next) {
@@ -270,7 +266,7 @@ void connectServer(int newfd) {
 	sscanf(buf, "%s %s", method, host);
 
 	if(strcmp(method, "CONNECT") == 0) {
-		char *port_start = strstr(host, ":");
+		char *port_start = strchr(host, ':');
 		char *port;
 		char https_port[10] = "443";
 
@@ -282,7 +278,7 @@ void connectServer(int newfd) {
 			port = https_port;
 		}
 
-		if((serverfd = create_serversocket(host, port) == -1)) {
+		if((serverfd = create_serversocket(host, port)) == -1) {
 			perror("socket: ");
 			close(newfd);
 			exit(1);
@@ -291,20 +287,14 @@ void connectServer(int newfd) {
 		printf("Host: %s Port: %s\n", host, port);
 		char *response = "HTTP/1.1 200 Connection established\r\n\r\n";
 		write(newfd, response, strlen(response));
-		int i;
+		
 		SSL *ssl2 = SSL_new(ctx2);
 		SSL_set_fd(ssl2, serverfd);
-		printf("hello world\n");
-		int j;
-		if((j = SSL_connect(ssl2)) <= 0) {
-			printf("%d\n", j);
+		if(SSL_connect(ssl2) <= 0) {
 			ERR_print_errors_fp(stderr);
 			close(newfd);
 			exit(1);
 		}
-
-		 printf("Enter something: \n");
-                scanf("%d", &i);
 		
 		SSL* ssl1 = SSL_new(ctx1);
 		SSL_set_fd(ssl1, newfd);
@@ -317,7 +307,6 @@ void connectServer(int newfd) {
 		 	return;
 		}
 
-		printf("hf\n");
 		handle_message(ssl1, ssl2, newfd, serverfd);
 
 		SSL_free(ssl2);
@@ -366,7 +355,7 @@ int  main() {
 
 	proxy_listen(proxyfd);			//make the server listen for incoming connections
 
-//	signal_handler();			//kill dead processes
+	signal_handler();			//kill dead processes
 
 	while(1) {
 		newfd = proxy_accept(proxyfd);
@@ -374,12 +363,8 @@ int  main() {
 	        if(newfd == -1)
 			continue;
 
-		if(!fork()) {			//for child processes
-			int i;		
-			printf("jj\n");	
-			scanf("%d", &i);
-			printf("#*!%d\n", i);			
-			//close(proxyfd);		//listener not needed for child processes
+		if(!fork()) {			//for child processes			
+			close(proxyfd);		//listener not needed for child processes
 
 			connectServer(newfd);
 

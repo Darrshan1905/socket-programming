@@ -147,28 +147,21 @@ void server_accept(int sockfd, struct pollfd **pfds, int *fd_size, int *fd_count
                 *fd_size += 5;
         }
 
-	printf("%d\n", *fd_size);
-
         (*pfds)[*fd_count].fd = newfd;
         (*pfds)[*fd_count].events = POLLIN;
 	(*pfds)[*fd_count].revents = 0;
 	
-	printf("%d\n", *fd_size);
-
 	SSL* ssl = SSL_new(context);
-	printf("%d\n", *fd_size);
 	SSL_set_fd(ssl, newfd);
 	if(SSL_accept(ssl) <= 0) {
 		ERR_print_errors_fp(stderr);
         	close(newfd);
         	exit(1);
 	}
-	printf("4");
 	(*sslfds)[*fd_count] = ssl;
 
         (*fd_count)++;
 
-	printf("%d", *fd_count);
 	//convert the ip address from network to presentation format
         inet_ntop(their_addr.ss_family, get_addr((struct sockaddr *) &their_addr), s, sizeof s);
         printf("server: got connection from %s\n", s);
@@ -270,7 +263,7 @@ void handle_getreq(SSL* ssl, char req[]) {
 	}
 
 	getmimetype(fileurl, mimetype);
-	printf("%s\n", mimetype);
+	printf("mime-type: %s\n", mimetype);
 
 	time_t t;
 	time(&t);
@@ -352,7 +345,7 @@ void handle_requests(SSL* ssl, struct pollfd *pfds) {
 
 	buf[n] = '\0';
 
-	printf("%s", buf);
+	printf("Request from the client: \n%s\n", buf);
 
 	//check whether a get or post request
         if(strstr(buf, "GET") != NULL)
