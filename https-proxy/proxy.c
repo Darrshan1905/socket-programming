@@ -12,15 +12,11 @@
 #include<arpa/inet.h> 
 #include<signal.h>
 #include<time.h>
-#include<openssl/ssl.h>
-#include<openssl/err.h>
+#include<poll.h>
 
 #define BACKLOG 10 	//pending connections the queue can hold
 #define MAX 1024	   	//maximum buffer size
 #define PROXY_PORT "8000"
-
-SSL_CTX *ctx1;
-SSL_CTX *ctx2;
 
 void sig_handler(int s){
 	int saved_errno = errno;
@@ -51,41 +47,6 @@ void signal_handler() {
         }
 
         printf("proxy-server: waiting for connections...\n");
-}
-
-void create_ssl_context1() {
-	SSL_library_init();
-	OpenSSL_add_all_algorithms();
-        SSL_load_error_strings();
-
-        ctx1 = SSL_CTX_new(TLS_server_method());
-
-        if(ctx1 == NULL) {
-                ERR_print_errors_fp(stderr);
-                exit(1);
-        }
-
-	if(SSL_CTX_use_certificate_file(ctx1, "server.crt", SSL_FILETYPE_PEM) <= 0) {
-		ERR_print_errors_fp(stderr);
-        	exit(EXIT_FAILURE);
-	}	
-
-	if (SSL_CTX_use_PrivateKey_file(ctx1, "server.key", SSL_FILETYPE_PEM) <= 0) {
-        	ERR_print_errors_fp(stderr);
-        	exit(EXIT_FAILURE);
-    	}
-}
-
-void create_ssl_context2() {
-	SSL_library_init();
-        SSL_load_error_strings();
-
-        ctx2 = SSL_CTX_new(TLS_client_method());
-
-        if(ctx2 == NULL) {
-                ERR_print_errors_fp(stderr);
-                exit(1);
-        }
 }
 
 int create_proxysocket() {
@@ -221,27 +182,53 @@ int create_serversocket(char *host, char * port) {
 	return sockfd;
 }
 
-void handle_message(SSL* ssl1, SSL* ssl2, int clientfd, int serverfd) {
-	char buf[1024];
+void handle_message(int clientfd, int serverfd) {
+	char buff[MAX];
 	ssize_t n;
+	struct pollfd pfds[2];
 
-	if((n = SSL_read(ssl1, buf, sizeof(buf))) <= 0)
-		return;
+	pfds[0].fd = clientfd;
+	pfds[0].events = POLLIN;
+	pfds[0].revents = 0;
 
-	buf[n] = '\0';
-//	printf("%s\n", buf);
+	pfds[1].fd = serverfd;
+	pfds[1].events = POLLIN;
+	pfds[1].revents = 0;
 
-	SSL_write(ssl2, buf, n);
 
-	while((n = SSL_read(ssl2, buf, sizeof(buf))) > 0)
-		SSL_write(ssl1, buf, n);
+	while(1) {
+		if(poll(pfds, 2, -1) == -1) {
+			perror("poll: ");
+			exit(1);
+		}
+
+		for(int fd = 0; fd < 2; fd++) {
+			if((pfds[fd].revents & POLLIN) == POLLIN && fd == 0) {
+				n = read(clientfd, buff, sizeof(buff));
+
+				if(n <= 0) 
+					return;
+				buff[n] = '\0';
+				n = write(serverfd, buff, n);
+			}	
+			if((pfds[fd].revents & POLLIN) == POLLIN && fd == 1) {
+				n = read(serverfd, buff, sizeof(buff));
+
+				if(n <= 0)
+                                        return;
+                                buff[n] = '\0';
+                                n = write(clientfd, buff, n);
+			}
+		}
+	}
+
 }
 
 void handle_message_http(int clientfd, int serverfd, char data[]) {
 	ssize_t n;
-	n = write(serverfd, data, 1024);
+	n = write(serverfd, data, MAX);
 
-	while((n = recv(serverfd, data, 1024, 0)) > 0) {
+	while((n = recv(serverfd, data, MAX, 0)) > 0) {
 		send(clientfd, data, n, 0);
 	}
 }
@@ -287,32 +274,8 @@ void connectServer(int newfd) {
 		printf("Host: %s Port: %s\n", host, port);
 		char *response = "HTTP/1.1 200 Connection established\r\n\r\n";
 		write(newfd, response, strlen(response));
-		
-		SSL *ssl2 = SSL_new(ctx2);
-		SSL_set_fd(ssl2, serverfd);
-		if(SSL_connect(ssl2) <= 0) {
-			ERR_print_errors_fp(stderr);
-			close(newfd);
-			exit(1);
-		}
-		
-		SSL* ssl1 = SSL_new(ctx1);
-		SSL_set_fd(ssl1, newfd);
 
-		if(SSL_accept(ssl1) <= 0) {
-			ERR_print_errors_fp(stderr);
-		 	SSL_free(ssl2);
-			close(newfd);
-		 	close(serverfd);
-		 	return;
-		}
-
-		handle_message(ssl1, ssl2, newfd, serverfd);
-
-		SSL_free(ssl2);
-		close(serverfd);
-		SSL_shutdown(ssl1);
-		SSL_free(ssl1);
+		handle_message(newfd, serverfd);
 	}
 	else {
 		char *host_start = strstr(buf, "Host: ") + 6;
@@ -348,9 +311,6 @@ void connectServer(int newfd) {
 int  main() {
 	int proxyfd, newfd;
 
-	create_ssl_context1();
-	create_ssl_context2();
-
 	proxyfd = create_proxysocket();		//create socket and bind it to the server's address and port
 
 	proxy_listen(proxyfd);			//make the server listen for incoming connections
@@ -373,7 +333,6 @@ int  main() {
 		}
 		close(newfd);			//parent doesn't need this
 	}
-	SSL_CTX_free(ctx1);
 	close(proxyfd);
 	return 0;
 }
