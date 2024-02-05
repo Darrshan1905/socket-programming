@@ -100,7 +100,7 @@ void sendconnreq(int sockfd) {
 
 	sprintf(req, "CONNECT %s:%s HTTP/1.1\r\nHost:%s\r\n\r\n", SERVER_IP, SERVER_PORT, SERVER_IP);
 
-	if((send(sockfd, req, strlen(req), 0)) == -1) {
+	if((send(sockfd, req, sizeof(req) - 1, 0)) == -1) {
 		perror("send");
 		exit(1);
 	}
@@ -113,7 +113,7 @@ void sendgetreq(SSL *ssl) {
 
         sprintf(req, "GET / HTTP/1.1\r\nHost: %s\r\n\r\n", SERVER_IP);
 
-        if((SSL_write(ssl, req, strlen(req))) == -1) {
+        if((SSL_write(ssl, req, sizeof(req) - 1)) == -1) {
                 perror("send");
                 exit(1);
         }
@@ -127,7 +127,7 @@ void sendpostreq(SSL *ssl) {
 
         sprintf(req, "POST / HTTP/1.1\r\nHost: %s\r\n\r\n%s", SERVER_IP, body);
 
-        if((SSL_write(ssl, req, strlen(req))) == -1) {
+        if((SSL_write(ssl, req, sizeof(req) - 1)) == -1) {
                 perror("send");
                 exit(1);
         }
