@@ -156,6 +156,27 @@ void send_message(char *buff, int uid) {
 	pthread_mutex_unlock(&clients_mutex);
 }
 
+void send_pvt_msg(char *sender, char *msg, char *recvr) {
+	printf("1\n");
+	pthread_mutex_lock(&clients_mutex);
+	printf("1\n");
+	for(int i = 0; i < MAXCLIENTS; i++) {
+		if(clients[i]) {
+			if(strcmp(clients[i] -> name, recvr) == 0) {
+				char buff[MAXBUF + 32];
+				sprintf(buff, "%s -> %s", sender, msg);
+				printf("%s\n", buff);
+				if(write(clients[i] -> sockfd, buff, strlen(buff)) < 0) {
+					perror("write: ");
+					break;
+				}
+			}
+		}
+	}
+
+	pthread_mutex_unlock(&clients_mutex);
+}	
+
 void *handle_client(void *arg) {
 	char buff[MAXBUF], name[30];
 	int f = 0;
@@ -163,7 +184,7 @@ void *handle_client(void *arg) {
 	clients_count++;
 	client_t *cli = (client_t*) arg;
 
-	if(recv(cli -> sockfd, name, 32, 0) <= 0 || strlen(name) < 2 || strlen(name) >= 30) {
+	if(recv(cli -> sockfd, name, 30, 0) <= 0 || strlen(name) < 2 || strlen(name) >= 30) {
 		printf("Name required.\n");
 		f = 1;
 	}
@@ -184,9 +205,19 @@ void *handle_client(void *arg) {
 		int rv;
 		if((rv = recv(cli -> sockfd, buff, MAXBUF, 0)) > 0) {
 			if(strlen(buff) > 0) {
-				send_message(buff, cli -> uid);
-				str_trim_lf(buff, strlen(buff));
-				printf("%s -> %s\n", cli -> name, buff);
+				char *to;
+				if(to = strstr(buff, "To:")) {
+					str_trim_lf(buff, strlen(buff));
+                                	printf("%s -> %s\n", cli -> name, buff);
+					char *sc = strstr(to + 4, ":");
+		                        *sc = '\0';
+                		        send_pvt_msg(cli -> name, sc + 1, to + 4);
+		                }
+				else {
+					send_message(buff, cli -> uid);
+					str_trim_lf(buff, strlen(buff));
+                                	printf("%s -> %s\n", cli -> name, buff);
+				}
 			}
 		}
 		else if(rv == 0 || strcmp(buff, "exit") == 0) {
@@ -208,6 +239,8 @@ void *handle_client(void *arg) {
 	clients_count--;
 
 	pthread_detach(pthread_self());
+
+	return NULL;
 }
 
 int main(int argc, char* argv[]) {

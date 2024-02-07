@@ -95,15 +95,25 @@ void send_msg_handler() {
 		str_overwrite_stdout();
 		fgets(msg, MAXBUF, stdin);
 		str_trim_lf(msg, strlen(msg));
+
+		char *to;
 		
 		if(strcmp(msg, "exit") == 0) {
 			break;
 		}
 		else {
-			sprintf(buff, "%s : %s", name, msg);
-			send(sockfd, buff, strlen(buff), 0);
+			if(to = strstr(msg, "To:")) {
+                        	char *sc = strstr(to + 4, ":");
+                        	*sc = '\0';
+				sprintf(buff, "To: %s:%s", to + 4, sc + 1);
+				send(sockfd, buff, strlen(buff), 0);
+	                }
+			else {
+				sprintf(buff, "%s : %s", name, msg);
+				send(sockfd, buff, strlen(buff), 0);
+		
+			}
 		}
-
 		bzero(buff, sizeof(buff));
 	}
 
@@ -153,7 +163,7 @@ int main(int argc, char* argv[]) {
 		exit(1);
 	}
 
-	printf("Type something to chat with other clients\nType exit to leave chat\n");
+	printf("Type something to chat with other clients\nTo chat with a specific client: To: <username>:<message>\nType exit to leave chat\n");
 
 	sockfd = create_clientsocket(ip, port);
 
