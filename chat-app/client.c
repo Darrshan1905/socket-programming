@@ -101,6 +101,9 @@ void send_msg_handler() {
 		if(strcmp(msg, "exit") == 0) {
 			break;
 		}
+		else if(strcmp(msg, "online") == 0) {
+			send(sockfd, msg, strlen(msg), 0);
+		}
 		else {
 			if(to = strstr(msg, "To:")) {
                         	char *sc = strstr(to + 4, ":");
@@ -114,6 +117,7 @@ void send_msg_handler() {
 		
 			}
 		}
+		bzero(msg, sizeof(msg));
 		bzero(buff, sizeof(buff));
 	}
 
@@ -163,11 +167,11 @@ int main(int argc, char* argv[]) {
 		exit(1);
 	}
 
-	printf("Type something to chat with other clients\nTo chat with a specific client: To: <username>:<message>\nType exit to leave chat\n");
-
 	sockfd = create_clientsocket(ip, port);
 
-	send(sockfd, name, 30, 0);
+        send(sockfd, name, 30, 0);
+
+	printf("1.Type something to chat with other clients\n2.To chat with a specific client: To: <username>:<message>\n3.Type \"online\" to get list of active users\n4.Type \"exit\" or ctrl + c to leave chat\n\n");
 
 	pthread_t send_thread;
 	if(pthread_create(&send_thread, NULL, (void*)send_msg_handler, NULL) != 0) {

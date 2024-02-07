@@ -156,10 +156,28 @@ void send_message(char *buff, int uid) {
 	pthread_mutex_unlock(&clients_mutex);
 }
 
-void send_pvt_msg(char *sender, char *msg, char *recvr) {
-	printf("1\n");
+void send_active_list(int senderfd) {
 	pthread_mutex_lock(&clients_mutex);
-	printf("1\n");
+
+	char buff[MAXBUF] = "\n---------ACTIVE USERS LIST---------\n";
+
+	for(int i = 0; i < MAXCLIENTS; i++) {
+		if(clients[i] && clients[i] -> sockfd != senderfd) {
+			strcat(buff, clients[i] -> name);
+			strcat(buff, "\n");		
+		}
+	}
+
+	if(write(senderfd, buff, strlen(buff)) < 0) {
+        	perror("write: ");
+        }
+
+	pthread_mutex_unlock(&clients_mutex);
+}
+
+void send_pvt_msg(char *sender, char *msg, char *recvr) {
+	pthread_mutex_lock(&clients_mutex);
+	
 	for(int i = 0; i < MAXCLIENTS; i++) {
 		if(clients[i]) {
 			if(strcmp(clients[i] -> name, recvr) == 0) {
@@ -213,6 +231,9 @@ void *handle_client(void *arg) {
 		                        *sc = '\0';
                 		        send_pvt_msg(cli -> name, sc + 1, to + 4);
 		                }
+				else if(strcmp(buff, "online") == 0) {
+					send_active_list(cli -> sockfd);
+				}
 				else {
 					send_message(buff, cli -> uid);
 					str_trim_lf(buff, strlen(buff));
