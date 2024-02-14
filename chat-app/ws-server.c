@@ -1,6 +1,7 @@
 #include<stdio.h>
 #include<string.h>
 #include<libwebsockets.h>
+#include<pthread.h>
 
 #define PORT 5000
 #define MAX_CLIENTS 100
@@ -12,17 +13,18 @@ void send_pvt_msg(char *sender, char *recvr, char *msg) {
 	for(int i = 0; i < MAX_CLIENTS; ++i) {
 		if(client_list[i] && strcmp(username_list[i], recvr) == 0) {
 			lws_write(client_list[i], msg, strlen(msg), LWS_WRITE_TEXT);
+			break;
 		}
 	}
 }
 
 void send_active_list(struct lws *wsi) {
-	char buff[2048] = "\n---------ACTIVE USERS LIST---------\n";
+	char buff[2048] = "</br>---------ACTIVE USERS LIST---------</br>";
 
 	for(int i = 0; i < MAX_CLIENTS; i++) {
                 if(client_list[i] && client_list[i] != wsi) {
                         strcat(buff, username_list[i]);
-                        strcat(buff, "\n");
+                        strcat(buff, "</br>");
                 }
         }
 
@@ -30,12 +32,11 @@ void send_active_list(struct lws *wsi) {
 }
 
 void send_message(char *sender, char *buff) {
-	 for (int i = 0; i < MAX_CLIENTS; ++i) {
-         	if (client_list[i] && strcmp(username_list[i], sender) != 0) {
+	for (int i = 0; i < MAX_CLIENTS; ++i) {
+        	if (client_list[i] && strcmp(username_list[i], sender) != 0) {
                 	lws_write(client_list[i], buff, strlen(buff), LWS_WRITE_TEXT);
                 }
-         }
-
+        }
 }
 
 int callback_echo(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len)
@@ -75,7 +76,8 @@ int callback_echo(struct lws *wsi, enum lws_callback_reasons reason, void *user,
             		break;
 		}
 
-        	case LWS_CALLBACK_RECEIVE:{
+        	case LWS_CALLBACK_RECEIVE:
+		{
 			char sender[30];
 			char *buff = (char*)in;
            		 // Forward the received message to all other clients
@@ -84,31 +86,26 @@ int callback_echo(struct lws *wsi, enum lws_callback_reasons reason, void *user,
                                         strcpy(sender, username_list[i]);
                                 }
                         }
-                        
-			printf("%s\n", sender);
 
 			char *to;
                         if(to = strstr(buff, "To:")) {
+				char msg[30];
                                 printf("%s -> %s\n", sender, buff);
                                 char *sc = strstr(to + 4, ":");
                                 *sc = '\0';
-                                send_pvt_msg(sender, to + 4, sc + 1);
+				sprintf(msg, "%s -> %s", sender, sc + 1);
+                                send_pvt_msg(sender, to + 4, msg);
                          }
                          else if(strcmp(buff, "online") == 0) {
-				printf("%s\n", buff);
+				printf("%s -> %s\n",sender, buff);
                                 send_active_list(wsi);
                          }
                          else {
-                                send_message(sender, buff);
+				char msg[30];
+				sprintf(msg, "%s -> %s", sender, buff);
+                                send_message(sender, msg);
                                 printf("%s -> %s\n", sender, buff);
                          }
-
-
-            		for (int i = 0; i < MAX_CLIENTS; ++i) {
-                		if (client_list[i] && strcmp(username_list[i], sender) != 0) {
-                    			lws_write(client_list[i], in, len, LWS_WRITE_TEXT);
-                		}
-            		}
             		break;
 		}
 
