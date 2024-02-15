@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>WebSocket Example</title>
+	</head>
+	<body>
+		<h1>Chat app</h1>
+		<h2 id = "helloMessage"></h2>
+		<input type="text" id="nameInput" placeholder="Enter your name">
+		<button id="setNameButton" onclick="setName()">Set Name</button><br></br>
+		<button id = "getActiveList" onclick="getActiveUsersList()">Get Active List</button><br></br> 
+		<hr></hr>
+		<div id="messages"></div>
+		<hr></hr>
+		<button id="publicMessage" onclick="displayPublic()">Click to send a broadcast message</button>
+		<button id="privateMessage" onclick="displayPrivate()">Click to send a private message</button>
+		<br></br>
+		<div id="messageAndReceiverInput">
+			<input type="hidden" id="recvrInput" placeholder="Enter the receiver name">
+			<input type="hidden" id="messageInput" placeholder="Type a message">
+			<button id="sendButton" onclick="sendMessage()">Send</button>
+		</div>
+		<script>
+			const socket = new WebSocket('ws://localhost:5000');
+			let name;
+
+			let sendButton = document.getElementById("sendButton");
+			sendButton.style.visibility = "hidden";
+
+			function setName() {
+				const nameInput = document.getElementById('nameInput');
+                                name = nameInput.value;
+                                console.log(name);
+
+				if (name.trim() === "") {
+                                        alert("Please enter a username");
+                                        return;
+                                }
+				
+				const buff = "Name: " + name;
+				socket.send(buff);
+
+				alert("Name has been set to " + name);
+
+				const setNameButton = document.getElementById("setNameButton");
+				setNameButton.innerHTML = "Update Name";
+
+				const helloMessage = document.getElementById("helloMessage");
+				helloMessage.innerHTML = "Hello " + name + " !";
+			}
+
+			socket.addEventListener('open', function (event) {
+                                console.log('Connected to Websocket server');
+                        });
+
+                        socket.addEventListener('message', function handleMessage(event) {
+                                console.log(event.data);
+                                const messagesDiv = document.getElementById('messages');
+                                messagesDiv.innerHTML += '<p>' + event.data + '</p>';
+                        });
+
+                        socket.addEventListener('close', function (event) {
+                                console.log('Connection to WebSocket server closed');
+                        });
+        
+                        socket.addEventListener('error', function (event) {
+                                console.error('WebSocket error:', event);
+                        });
+
+
+			function sendMessage() {
+				if (!name || !socket || socket.readyState !== WebSocket.OPEN) {
+        				console.error("Check whether name is entered and WebSocket connection is open.");
+        				return;
+    				}
+
+    				const messageInput = document.getElementById("messageInput");
+				const message = messageInput.value;
+    				if (!message) {
+        				console.error("Please enter a message.");
+        				return;
+    				}
+
+				const recvrInput = document.getElementById("recvrInput");
+				const recvr = recvrInput.value;
+
+				if(!recvr) {
+					socket.send(message);
+					console.log(message)
+				}
+				else {
+					const buffer = "To: " + recvr + ":" + message;
+					socket.send(buffer);
+					console.log(buffer);
+				}
+
+				messageInput.value = '';
+				recvrInput.value = '';
+			}
+
+			function getActiveUsersList() {
+				if (!name || !socket || socket.readyState !== WebSocket.OPEN) {
+                                        console.error("Check whether name is entered and WebSocket connection is open.");
+                                        return;
+                                }
+
+				const message = "online";
+
+				socket.send(message);
+				console.log(message);
+			}
+
+			function displayPublic() {
+				const messageInput = document.getElementById("messageInput");
+				messageInput.setAttribute("type", "text");
+				sendButton.style.visibility = "visible";
+
+				const recvrInput = document.getElementById("recvrInput");
+                                recvrInput.setAttribute("type", "hidden");
+			}	
+
+			function displayPrivate() {
+				const recvrInput = document.getElementById("recvrInput");
+                                recvrInput.setAttribute("type", "text");
+				const messageInput = document.getElementById("messageInput");
+                                messageInput.setAttribute("type", "text");
+				sendButton.style.visibility = "visible";
+			}
+		</script>
+	</body>
+</html>
