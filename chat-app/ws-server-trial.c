@@ -18,8 +18,10 @@ void send_pvt_msg(char *sender, char *recvr, char *msg) {
 	}
 }
 
-void send_active_list(struct lws *wsi) {
-	char buff[2048] = "</br>---------ACTIVE USERS LIST---------</br>";
+void send_active_list(struct lws *wsi, int option) {
+	char buff[2048] = "------ACTIVE USERS LIST------</br>";
+
+	
 
 	for(int i = 0; i < MAX_CLIENTS; i++) {
                 if(client_list[i] && client_list[i] != wsi) {
@@ -27,6 +29,10 @@ void send_active_list(struct lws *wsi) {
                         strcat(buff, "</br>");
                 }
         }
+	
+	if(option) {
+		strcat(buff, "option");
+	}
 
 	lws_write(wsi, buff, strlen(buff), LWS_WRITE_TEXT);
 }
@@ -34,10 +40,17 @@ void send_active_list(struct lws *wsi) {
 void send_message(char *sender, char *buff) {
 	for (int i = 0; i < MAX_CLIENTS; ++i) {
         	if (client_list[i] && strcmp(username_list[i], sender) != 0) {
-			printf("%s\n", username_list[i]);
                 	lws_write(client_list[i], buff, strlen(buff), LWS_WRITE_TEXT);
                 }
         }
+}
+
+void send_joined_message(char *msg, struct lws *wsi) {
+	for(int i = 0; i < MAX_CLIENTS; i++) {
+		if(client_list[i] && wsi != client_list[i]) {
+			lws_write(client_list[i], msg, strlen(msg), LWS_WRITE_TEXT);
+		}
+	}
 }
 
 int callback_echo(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len)
@@ -68,9 +81,12 @@ int callback_echo(struct lws *wsi, enum lws_callback_reasons reason, void *user,
 			if(name = strstr(buff, "Name: ")) {
 				for(int i = 0; i < MAX_CLIENTS; i++) {
 					if(client_list[i] && client_list[i] == wsi) {
+						char msg[50];
 						username_list[i] = (char *)malloc(sizeof(char) * 30);
 						strcpy(username_list[i], name + 6);
-						printf("%s joined the chat\n", username_list[i]);
+						sprintf(msg, "%s joined the chat\n", username_list[i]);
+						send_joined_message(msg, wsi);
+						printf("%s\n", msg);
 						break;
 					}	
 				}
@@ -94,8 +110,12 @@ int callback_echo(struct lws *wsi, enum lws_callback_reasons reason, void *user,
                          	}
                          	else if(strcmp(buff, "online") == 0) {
 					printf("%s -> %s\n",sender, buff);
-                                	send_active_list(wsi);
+                                	send_active_list(wsi, 0);
                          	}
+				else if(strcmp(buff, "online1") == 0) {
+					printf("%s -> %s\n", sender, buff);
+					send_active_list(wsi, 1);
+				}
                          	else {
 					char msg[30];
 					sprintf(msg, "%s -> %s", sender, buff);

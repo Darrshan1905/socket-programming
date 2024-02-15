@@ -4,31 +4,41 @@
 		<meta charset="UTF-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>WebSocket Example</title>
+		<link rel="stylesheet" href="styles.css">
 	</head>
 	<body>
-		<h1>Chat app</h1>
-		<h2 id = "helloMessage"></h2>
-		<input type="text" id="nameInput" placeholder="Enter your name">
-		<button id="setNameButton" onclick="setName()">Set Name</button><br></br>
-		<button id = "getActiveList" onclick="getActiveUsersList()">Get Active List</button><br></br> 
-		<hr></hr>
-		<div id="messages"></div>
-		<hr></hr>
-		<button id="publicMessage" onclick="displayPublic()">Click to send a broadcast message</button>
-		<button id="privateMessage" onclick="displayPrivate()">Click to send a private message</button>
-		<br></br>
-		<div id="messageAndReceiverInput">
-			<input type="hidden" id="recvrInput" placeholder="Enter the receiver name">
-			<input type="hidden" id="messageInput" placeholder="Type a message">
-			<button id="sendButton" onclick="sendMessage()">Send</button>
+		<div class="container">
+			<h1>Chat app</h1>
+			<h2 id = "helloMessage"></h2>
+			<input type="text" id="nameInput" placeholder="Enter your name">
+			<button id="setNameButton" onclick="setName()">Set Name</button><br></br>
+			<button id = "getActiveList" onclick="getActiveUsersList(0)">Get Active List</button><br></br> 
+			<hr></hr>
+			<div id="messages"></div>
+			<hr></hr>
+			<button id="publicMessage" onclick="displayPublic()">Click to send a broadcast message</button>
+			<button id="privateMessage" onclick="displayPrivate()">Click to send a private message</button>
+			<br></br>
+			<div id="messageAndReceiverInput">
+				<select id="recvrInput">
+					<option value="none" selected disabled>Select a user to chat to</option>
+				</select>
+				<input type="hidden" id="messageInput" placeholder="Type a message">
+				<button id="sendButton" onclick="sendMessage()">Send</button>
+			</div>
 		</div>
 		<script>
 			const socket = new WebSocket('ws://localhost:5000');
 			let name;
 
+			let activeList = [];
+
 			let sendButton = document.getElementById("sendButton");
 			sendButton.style.visibility = "hidden";
 
+			let recvrInput = document.getElementById("recvrInput");
+			recvrInput.style.visibility = "hidden";
+			
 			function setName() {
 				const nameInput = document.getElementById('nameInput');
                                 name = nameInput.value;
@@ -56,9 +66,19 @@
                         });
 
                         socket.addEventListener('message', function handleMessage(event) {
+				if((event.data).includes("------ACTIVE USERS LIST------")) {
+                                        activeList = event.data.split("</br>");
+                                        console.log(activeList);
+                                }
+
                                 console.log(event.data);
-                                const messagesDiv = document.getElementById('messages');
-                                messagesDiv.innerHTML += '<p>' + event.data + '</p>';
+				
+				if(activeList.length !== 0 && activeList[activeList.length - 1] === "option") {
+                                	update();
+				} else{
+					const messagesDiv = document.getElementById('messages');
+                                        messagesDiv.innerHTML += '<p>' + event.data + '</p>';
+				}
                         });
 
                         socket.addEventListener('close', function (event) {
@@ -85,8 +105,8 @@
 
 				const recvrInput = document.getElementById("recvrInput");
 				const recvr = recvrInput.value;
-
-				if(!recvr) {
+				console.log(recvr);
+				if(recvr === 'none') {
 					socket.send(message);
 					console.log(message)
 				}
@@ -97,17 +117,21 @@
 				}
 
 				messageInput.value = '';
-				recvrInput.value = '';
+				recvrInput.selectedIndex = 0;
 			}
 
-			function getActiveUsersList() {
+			function getActiveUsersList(option) {
 				if (!name || !socket || socket.readyState !== WebSocket.OPEN) {
                                         console.error("Check whether name is entered and WebSocket connection is open.");
                                         return;
                                 }
 
-				const message = "online";
-
+				let message;
+				if(option === 1) {
+					message = "online1";
+				} else {
+					message = "online"
+				}
 				socket.send(message);
 				console.log(message);
 			}
@@ -115,18 +139,37 @@
 			function displayPublic() {
 				const messageInput = document.getElementById("messageInput");
 				messageInput.setAttribute("type", "text");
+
 				sendButton.style.visibility = "visible";
 
-				const recvrInput = document.getElementById("recvrInput");
-                                recvrInput.setAttribute("type", "hidden");
+                                recvrInput.style.visibility = "hidden"
 			}	
 
 			function displayPrivate() {
 				const recvrInput = document.getElementById("recvrInput");
-                                recvrInput.setAttribute("type", "text");
+                                recvrInput.style.visibility = "visible";
+				
 				const messageInput = document.getElementById("messageInput");
                                 messageInput.setAttribute("type", "text");
+				
 				sendButton.style.visibility = "visible";
+
+				getActiveUsersList(1);
+			}
+			
+			function update() {
+				recvrInput.innerHTML = "<option value='none' selected disabled>Select a user to chat to</option>";
+
+				for (let i = 1; i < activeList.length - 1; i++) {
+                                        let option = document.createElement("option");
+                                        option.setAttribute('value', activeList[i]);
+
+                                        let optionText = document.createTextNode(activeList[i]);
+                                        option.appendChild(optionText);
+
+                                        recvrInput.appendChild(option);
+                                }
+				activeList[activeList.length - 1] = "";
 			}
 		</script>
 	</body>
