@@ -1,3 +1,7 @@
 server.crt
 server.csr
 server.key
+/**/*.out
+/**/*.swo
+/**/*.swp
+
