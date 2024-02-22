@@ -56,7 +56,7 @@ void send_joined_message(char *msg, struct lws *wsi) {
 class WebSocketServer {
 public:
     WebSocketServer() : context(nullptr) {}
-
+    
     void start() {
         struct lws_context_creation_info info;
         memset(&info, 0, sizeof(info));
@@ -85,8 +85,6 @@ private:
 
     // Callback function
     static int callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len);
-
-    // Other helper methods can be added here
     
 };
 
