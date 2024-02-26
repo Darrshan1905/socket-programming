@@ -74,6 +74,8 @@ int callback_echo(struct lws *wsi, enum lws_callback_reasons reason, void *user,
 		{
 			char sender[30];
 			char *buff = (char*)in;
+
+			buff[len] = '\0';
            		
 			printf("buffer: %s\n", buff);
 
@@ -185,4 +187,3 @@ int main()
 
     	return 0;
 }
-
