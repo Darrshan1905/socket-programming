@@ -7,51 +7,57 @@ using namespace std;
 #define PORT 5000
 #define MAX_CLIENTS 100
 
-vector<struct lws *> client_list(MAX_CLIENTS);
-vector<string> username_list(MAX_CLIENTS);
+class Users {
+    public:
+        static vector<struct lws *> client_list;
+        static vector<string> username_list;
 
-void send_pvt_msg(const string sender, const string &recvr, char *msg) {
-    for (int i = 0; i < MAX_CLIENTS; ++i) {
-        if (client_list[i] && username_list[i] == recvr) {
-            lws_write(client_list[i], (unsigned char*)msg, strlen(msg), LWS_WRITE_TEXT);
-            break;
+        static void send_pvt_msg(const string sender, const string &recvr, char *msg) {
+            for (int i = 0; i < MAX_CLIENTS; ++i) {
+                if (client_list[i] && username_list[i] == recvr) {
+                    lws_write(client_list[i], (unsigned char*)msg, strlen(msg), LWS_WRITE_TEXT);
+                    break;
+                }
+            }
+        }   
+
+        static void send_active_list(struct lws *wsi, int option) {
+            char buff[2048] = "------ACTIVE USERS LIST------</br>";
+
+            for (size_t i = 0; i < MAX_CLIENTS; i++) {
+                if (client_list[i] && client_list[i] != wsi) {
+                    strcat(buff, (char *)username_list[i].c_str());
+                    strcat(buff, "</br>");
+                }
+            }
+
+            if (option) {
+                strcat(buff, "option");
+            }
+
+            lws_write(wsi, (unsigned char*)buff, strlen(buff), LWS_WRITE_TEXT);
         }
-    }
-}
 
-void send_active_list(struct lws *wsi, int option) {
-    char buff[2048] = "------ACTIVE USERS LIST------</br>";
+        static void send_message(const string &sender, char *buff) {
+            for (int i = 0; i < MAX_CLIENTS; ++i) {
+                if (client_list[i] && username_list[i] != sender) {
 
-    for (size_t i = 0; i < MAX_CLIENTS; i++) {
-        if (client_list[i] && client_list[i] != wsi) {
-            strcat(buff, (char *)username_list[i].c_str());
-            strcat(buff, "</br>");
+                    lws_write(client_list[i], (unsigned char*)buff, strlen(buff), LWS_WRITE_TEXT);
+                }
+            }
         }
-    }
 
-    if (option) {
-        strcat(buff, "option");
-    }
-
-    lws_write(wsi, (unsigned char*)buff, strlen(buff), LWS_WRITE_TEXT);
-}
-
-void send_message(const string &sender, char *buff) {
-    for (int i = 0; i < MAX_CLIENTS; ++i) {
-        if (client_list[i] && username_list[i] != sender) {
-
-            lws_write(client_list[i], (unsigned char*)buff, strlen(buff), LWS_WRITE_TEXT);
+        static void send_joined_message(char *msg, struct lws *wsi) {
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                if (client_list[i] && wsi != client_list[i]) {
+                    lws_write(client_list[i], (unsigned char*)msg, strlen(msg), LWS_WRITE_TEXT);
+                }
+            }
         }
-    }
-}
+};
 
-void send_joined_message(char *msg, struct lws *wsi) {
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (client_list[i] && wsi != client_list[i]) {
-            lws_write(client_list[i], (unsigned char*)msg, strlen(msg), LWS_WRITE_TEXT);
-        }
-    }
-}
+vector<struct lws*> Users::client_list(MAX_CLIENTS);
+vector<string> Users::username_list(MAX_CLIENTS);
 
 class WebSocketServer {
 public:
@@ -86,8 +92,6 @@ private:
     // Callback function
     static int callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len);
 
-    // Other helper methods can be added here
-    
 };
 
 // Initialize static member
@@ -102,8 +106,8 @@ int WebSocketServer::callback(struct lws *wsi, enum lws_callback_reasons reason,
             // Add client to the client list
             cout << "Client connected\n";
             for (size_t i = 0; i < MAX_CLIENTS; ++i) {
-                if (!client_list[i]) {
-                    client_list[i] = wsi;
+                if (!Users::client_list[i]) {
+                    Users::client_list[i] = wsi;
                     break;
                 }
             }
@@ -121,21 +125,21 @@ int WebSocketServer::callback(struct lws *wsi, enum lws_callback_reasons reason,
             char *name;
             if (name = strstr(buff, "Name: ")) {
                 for (size_t i = 0; i < MAX_CLIENTS; i++) {
-                    if (client_list[i] && client_list[i] == wsi) {
+                    if (Users::client_list[i] && Users::client_list[i] == wsi) {
                         char msg[50];
-                        username_list[i] = string(name + 6);
+                        Users::username_list[i] = string(name + 6);
                         
-                        sprintf(msg, "%s joined the chat\n", username_list[i].c_str());
+                        sprintf(msg, "%s joined the chat\n", Users::username_list[i].c_str());
                         
-                        send_joined_message(msg, wsi);
+                        Users::send_joined_message(msg, wsi);
                         cout << msg << endl;
                         break;
                     }
                 }
             } else {
                 for (size_t i = 0; i < MAX_CLIENTS; ++i) {
-                    if (client_list[i] && client_list[i] == wsi) {
-                        strcpy(sender, username_list[i].c_str());
+                    if (Users::client_list[i] && Users::client_list[i] == wsi) {
+                        strcpy(sender, Users::username_list[i].c_str());
                     }
                 }
 
@@ -146,17 +150,17 @@ int WebSocketServer::callback(struct lws *wsi, enum lws_callback_reasons reason,
                     char *sc = strstr(to + 4, ":");
                     *sc = '\0';
                     sprintf(msg, "%s -> %s", sender, sc + 1);
-                    send_pvt_msg(sender, to + 4, msg);
+                    Users::send_pvt_msg(sender, to + 4, msg);
                 } else if (strcmp(buff, "online") == 0) {
                     cout << sender << " -> " << buff << endl;
-                    send_active_list(wsi, 0);
+                    Users::send_active_list(wsi, 0);
                 } else if (strcmp(buff, "online1") == 0) {
                     cout << sender << " -> " << buff << endl;
-                    send_active_list(wsi, 1);
+                    Users::send_active_list(wsi, 1);
                 } else {
                     char msg[30];
                     sprintf(msg, "%s -> %s", sender, buff);
-                    send_message(sender, msg);
+                    Users::send_message(sender, msg);
                     cout << sender << " -> " << buff << endl;
                 }
             }
@@ -169,9 +173,9 @@ int WebSocketServer::callback(struct lws *wsi, enum lws_callback_reasons reason,
 
             // Remove client from the client list
             for (size_t i = 0; i < MAX_CLIENTS; ++i) {
-                if (client_list[i] == wsi) {
-                    cout << username_list[i] << " left the chat\n\n";
-                    client_list[i] = nullptr;
+                if (Users::client_list[i] == wsi) {
+                    cout << Users::username_list[i] << " left the chat\n\n";
+                    Users::client_list[i] = nullptr;
                     break;
                 }
             }
