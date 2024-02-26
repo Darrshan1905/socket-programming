@@ -114,11 +114,12 @@ int WebSocketServer::callback(struct lws *wsi, enum lws_callback_reasons reason,
             char sender[30];
             char *buff = (char *)in;
 
+            buff[len] = '\0';
+
             cout << "buffer: " << buff << endl;
 
             char *name;
             if (name = strstr(buff, "Name: ")) {
-                cout<<"1"<<endl;
                 for (size_t i = 0; i < MAX_CLIENTS; i++) {
                     if (client_list[i] && client_list[i] == wsi) {
                         char msg[50];
@@ -127,7 +128,6 @@ int WebSocketServer::callback(struct lws *wsi, enum lws_callback_reasons reason,
                         sprintf(msg, "%s joined the chat\n", username_list[i].c_str());
                         
                         send_joined_message(msg, wsi);
-                        cout<<"2"<<endl;
                         cout << msg << endl;
                         break;
                     }
