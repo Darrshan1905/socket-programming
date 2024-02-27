@@ -12,6 +12,32 @@ class Users {
         static vector<struct lws *> client_list;
         static vector<string> username_list;
 
+	static void addClient(struct lws *wsi) {
+		for (size_t i = 0; i < MAX_CLIENTS; ++i) {
+                	if (!client_list[i]) {
+                    		client_list[i] = wsi;
+                    		break;
+                	}
+            	}	
+	}
+
+	static void send_joined_message(char *msg, struct lws *wsi) {
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                if (client_list[i] && wsi != client_list[i]) {
+                    lws_write(client_list[i], (unsigned char*)msg, strlen(msg), LWS_WRITE_TEXT);
+                }
+            }
+        }
+
+	static void setOrUpdateName(struct lws *wsi, string name) {
+		for (size_t i = 0; i < MAX_CLIENTS; i++) {
+                    if (client_list[i] && client_list[i] == wsi) {
+                        char msg[50];
+                        username_list[i] = name;
+                    }
+                }
+	}
+
         static void send_pvt_msg(const string sender, const string &recvr, char *msg) {
             for (int i = 0; i < MAX_CLIENTS; ++i) {
                 if (client_list[i] && username_list[i] == recvr) {
@@ -47,13 +73,15 @@ class Users {
             }
         }
 
-        static void send_joined_message(char *msg, struct lws *wsi) {
-            for (int i = 0; i < MAX_CLIENTS; i++) {
-                if (client_list[i] && wsi != client_list[i]) {
-                    lws_write(client_list[i], (unsigned char*)msg, strlen(msg), LWS_WRITE_TEXT);
-                }
+	static void removeClient(struct lws *wsi) {
+	    for (size_t i = 0; i < MAX_CLIENTS; ++i) {
+                if (client_list[i] == wsi) {
+                    cout << username_list[i] << " left the chat\n\n";
+                    client_list[i] = nullptr;
+                    break;
+               	}
             }
-        }
+	}
 };
 
 vector<struct lws*> Users::client_list(MAX_CLIENTS);
@@ -103,14 +131,8 @@ struct lws_protocols WebSocketServer::protocols[] = {
 int WebSocketServer::callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len) {
     switch (reason) {
         case LWS_CALLBACK_ESTABLISHED: {
-            // Add client to the client list
-            cout << "Client connected\n";
-            for (size_t i = 0; i < MAX_CLIENTS; ++i) {
-                if (!Users::client_list[i]) {
-                    Users::client_list[i] = wsi;
-                    break;
-                }
-            }
+            // Add client to the client_list
+	    Users::addClient(wsi);
             break;
         }
 
@@ -124,18 +146,10 @@ int WebSocketServer::callback(struct lws *wsi, enum lws_callback_reasons reason,
 
             char *name;
             if (name = strstr(buff, "Name: ")) {
-                for (size_t i = 0; i < MAX_CLIENTS; i++) {
-                    if (Users::client_list[i] && Users::client_list[i] == wsi) {
-                        char msg[50];
-                        Users::username_list[i] = string(name + 6);
-                        
-                        sprintf(msg, "%s joined the chat\n", Users::username_list[i].c_str());
-                        
-                        Users::send_joined_message(msg, wsi);
-                        cout << msg << endl;
-                        break;
-                    }
-                }
+		char msg[50];
+		Users::setOrUpdateName(wsi, string(name + 6));
+                sprintf(msg, "%s joined the chat\n", name + 6);
+		Users::send_joined_message(msg, wsi);
             } else {
                 for (size_t i = 0; i < MAX_CLIENTS; ++i) {
                     if (Users::client_list[i] && Users::client_list[i] == wsi) {
@@ -172,13 +186,7 @@ int WebSocketServer::callback(struct lws *wsi, enum lws_callback_reasons reason,
             cout << "Client disconnected\n";
 
             // Remove client from the client list
-            for (size_t i = 0; i < MAX_CLIENTS; ++i) {
-                if (Users::client_list[i] == wsi) {
-                    cout << Users::username_list[i] << " left the chat\n\n";
-                    Users::client_list[i] = nullptr;
-                    break;
-                }
-            }
+	    Users::removeClient(wsi);
             break;
 
         default:
