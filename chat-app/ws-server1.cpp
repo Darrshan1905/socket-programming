@@ -56,8 +56,6 @@ public:
 private:
     struct lws_context *context;
     
-
-    
     //callback function
     static int callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len) {
         switch (reason) {
@@ -118,7 +116,7 @@ private:
             return;
         }
 
-        cout << "WebSocket server started. Listening on port " << PORT << endl;
+        cout << "WebSocket server started. Listening on port: " << PORT << endl;
 
         while (true) {
             lws_service(context, 50);
